@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Here we override the original grub-install with a custom version that does a
 # secure installation of GRUB.  For now, we don't support any of the original
@@ -69,6 +69,9 @@ Cleanup () {
     if [ -n "$PEMPRIVATEKEY" ] ; then
         rm -f "$PEMPRIVATEKEY"
     fi
+    if [ -n "$NULL_FILE" ]; then
+        rm -f "$NULL_FILE"
+    fi
 }
 
 # Obtain passphrase from user:
@@ -111,25 +114,33 @@ then
     PEMPRIVATEKEY="$(mktemp)"
     trap Cleanup EXIT INT TERM
 
-    # Extract public key:
-    KEYID=$(gpg -k --with-colons | grep "Ubuntu secure boot EFI key" \
-        | cut -d : -f 5)
+    export GPG_TTY=$(tty)
+
+    # See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=838153
+    # KEYID is not in output. So instead, export and grep it
+    KEYID=$(gpg -a --export |gpg --list-packets --verbose | \
+      awk '/Ubuntu secure boot EFI key/ { printing=1 } /keyid/ { if (printing) { print $NF; printing=0} } {}')
+
     gpg --batch --yes --output "$GPGPUBLICKEY" --export "$KEYID"
 
     # Get passphrase:
+    NULL_FILE=$(mktemp)
     PASSPHRASEOK=0
+    gpg-connect-agent updatestartuptty /bye
     while [ "$PASSPHRASEOK" -eq 0 ] ; do
         GetPassphrase
+        rm -f "$NULL_FILE"
         # Test signing to make sure passphrase is ok
         echo "$PASSPHRASE" > "$PASSPHRASEFILE"
-        if ! : | gpg --batch -u "$KEYID" --passphrase-file "$PASSPHRASEFILE" \
-            -o /dev/null -as -
+        if ! : | gpg --pinentry-mode=loopback --batch -u "$KEYID" --passphrase-file "$PASSPHRASEFILE" \
+            -o "$NULL_FILE" -as -
         then
             RetryPassphrase
         else
             PASSPHRASEOK=1
         fi
     done
+    rm -f $"NULL_FILE"
 
     # We have to sign all GRUB files (e.g. modules) with gpg.  Currently,
     # grub-mkstandalone - while otherwise being the ideal tool to use
@@ -298,10 +309,16 @@ EOFPASSPHRASEEOF
     efibootmgr | grep -i "$BOOTLOADER_ID" | cut -c 5-8 | xargs -n 1 -r \
         efibootmgr --quiet --delete-bootnum --bootnum
     set -e
-    # Add new bootloader entry:
+    # Add new bootloader entry. nvme looks like /dev/nvme0n1p1
     DEVICE="$(df -T /boot/efi | sed -n 2p | awk '{ print $1}')"
-    DISK="$(echo "$DEVICE" | sed 's|[0-9]||g')"
-    PARTNUM="$(echo "$DEVICE" | sed 's|[^0-9]||g')"
+    if [[ $DEVICE =~ n[0-9]+p[0-9] ]]
+    then
+        DISK="$(echo "$DEVICE" | sed 's?p.*??g')"
+        PARTNUM="$(echo "$DEVICE" | sed 's?.*p??g')"
+    else
+        DISK="$(echo "$DEVICE" | sed 's|[0-9]||g')"
+        PARTNUM="$(echo "$DEVICE" | sed 's|[^0-9]||g')"
+    fi
     efibootmgr --quiet --create --disk "$DISK" --part "$PARTNUM" \
         --write-signature --label "$BOOTLOADER_ID" \
         --loader "\\EFI\\$BOOTLOADER_ID\\$EFI_FILENAME"
