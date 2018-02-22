@@ -140,7 +140,7 @@ then
             PASSPHRASEOK=1
         fi
     done
-    rm -f $"NULL_FILE"
+    rm -f "$NULL_FILE"
 
     # We have to sign all GRUB files (e.g. modules) with gpg.  Currently,
     # grub-mkstandalone - while otherwise being the ideal tool to use
