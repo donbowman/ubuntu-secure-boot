@@ -189,6 +189,8 @@ then
         verify
         gcry_rsa
         gcry_dsa
+        gcry_sha256
+        gcry_sha512
         "
     # The upstream Debian version of GRUB2 applies a special patch called
     # debian/patches/no_insmod_on_sb.patch:
@@ -282,7 +284,7 @@ then
     # If the user is running an older version of Ubuntu/GRUB2, they might not
     # have all the modules listed above.  Filter out the ones they don't have.
     WANTED_FILE=$(mktemp)
-    echo $GRUB_MODULES | tr ' ' '\0' | tr -d '\n' | sort -z > "$WANTED_FILE"
+    echo $GRUB_MODULES | tr ' ' '\0' | tr -d '\n' | sort -u -z > "$WANTED_FILE"
     ACTUAL_FILE=$(mktemp)
     find "$GRUBSTAGE/boot/grub" -type f -name \*.mod -printf '%f\0' | \
         sed -z 's/\.mod//g' | sort -z > "$ACTUAL_FILE"

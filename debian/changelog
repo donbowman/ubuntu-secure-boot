@@ -2,8 +2,8 @@ ubuntu-secure-boot (0.1.3) unstable; urgency=low
 
   * Add support for gpg2.x (Ubuntu 18.04)
 
- -- Don Bowman <db@donbowman.ca>  Wed Feb 21 17:52:07 -0500
-`
+ -- Don Bowman <db@donbowman.ca>  Wed, 21 Feb 2018 17:52:07 -0500
+
 ubuntu-secure-boot (0.1.2) unstable; urgency=low
 
   * Work around upstream no_insmod_on_sb.patch that prevents us from loading
