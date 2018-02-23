@@ -344,9 +344,12 @@ EOFPASSPHRASEEOF
         # (see comments in update-grub).
         echo "Signing kernel or initrd at $SECURE_BOOT_KERNEL_PATH"
         if [ -n "$SECURE_BOOT_SIGNED_SOURCE" ] ; then
-            # Check source signature
-            gpg --verify "${SECURE_BOOT_SIGNED_SOURCE}.sig" \
-                "$SECURE_BOOT_SIGNED_SOURCE"
+            if [ -f "${SECURE_BOOT_SIGNED_SOURCE}.sig" ]
+            then
+                # Check source signature
+                gpg --verify "${SECURE_BOOT_SIGNED_SOURCE}.sig" \
+                    "$SECURE_BOOT_SIGNED_SOURCE"
+            fi
 
             # Copy and sign it to destination with sbsign:
             runsbsign --key "$PEMPRIVATEKEY" --cert "$KEYDIR/db.crt" \
