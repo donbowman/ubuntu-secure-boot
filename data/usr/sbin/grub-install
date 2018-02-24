@@ -63,43 +63,10 @@ Cleanup () {
     if [ -n "$GRUBSTAGE" ] ; then
         rm -rf "$GRUBSTAGE"
     fi
-    if [ -n "$PASSPHRASEFILE" ] ; then
-        rm -f "$PASSPHRASEFILE"
-    fi
     if [ -n "$PEMPRIVATEKEY" ] ; then
         rm -f "$PEMPRIVATEKEY"
     fi
-    if [ -n "$NULL_FILE" ]; then
-        rm -f "$NULL_FILE"
-    fi
-}
-
-# Obtain passphrase from user:
-GetPassphrase() {
-    # Ask user for passphrase: note that we die if return code is 30,
-    # indicating that the user won't be asked the question:
-    db_settitle ubuntu-secure-boot/title
-    db_reset ubuntu-secure-boot/passphrase
-    db_fset ubuntu-secure-boot/passphrase seen false
-    db_input critical ubuntu-secure-boot/passphrase
-    db_go
-    db_get ubuntu-secure-boot/passphrase
-    PASSPHRASE="$RET"
-    # Always reset the password so that it doesn't remain behind:
-    db_reset ubuntu-secure-boot/passphrase
-}
-
-# Ask if the user wants to retry entering passphrase:
-RetryPassphrase() {
-    db_settitle ubuntu-secure-boot/title
-    db_reset ubuntu-secure-boot/retrypassphrase
-    db_fset ubuntu-secure-boot/retrypassphrase seen false
-    db_input critical ubuntu-secure-boot/retrypassphrase
-    db_go
-    db_get ubuntu-secure-boot/retrypassphrase
-    if [ "$RET" != true ] ; then
-        exit 1
-    fi
+    [ -n "$NULL" ] && rm -f "$NULL"
 }
 
 # Does key directory exist?
@@ -110,8 +77,8 @@ then
     # Temporary files:
     GPGPUBLICKEY="$(mktemp)"
     GRUBSTAGE="$(mktemp -d)"
-    PASSPHRASEFILE="$(mktemp)"
     PEMPRIVATEKEY="$(mktemp)"
+    NULL="$(mktemp)"
     trap Cleanup EXIT INT TERM
 
     export GPG_TTY=$(tty)
@@ -123,24 +90,17 @@ then
 
     gpg --batch --yes --output "$GPGPUBLICKEY" --export "$KEYID"
 
-    # Get passphrase:
-    NULL_FILE=$(mktemp)
-    PASSPHRASEOK=0
     gpg-connect-agent updatestartuptty /bye
-    while [ "$PASSPHRASEOK" -eq 0 ] ; do
-        GetPassphrase
-        rm -f "$NULL_FILE"
-        # Test signing to make sure passphrase is ok
-        echo "$PASSPHRASE" > "$PASSPHRASEFILE"
-        if ! : | gpg --pinentry-mode=loopback --batch -u "$KEYID" --passphrase-file "$PASSPHRASEFILE" \
-            -o "$NULL_FILE" -as -
-        then
-            RetryPassphrase
-        else
-            PASSPHRASEOK=1
-        fi
+    
+    # Test signing to make sure passphrase is ok, also to
+    # fetch it into the gpg-agent cache
+    # We use a file for the output rather than /dev/null
+    # since it does a chmod 644 after its done!
+    until : | gpg --batch -u "$KEYID" -o "$NULL" -as -
+    do
+	echo "Incorrect passphrase, retry"
     done
-    rm -f "$NULL_FILE"
+    rm -f "$NULL"
 
     # We have to sign all GRUB files (e.g. modules) with gpg.  Currently,
     # grub-mkstandalone - while otherwise being the ideal tool to use
@@ -166,8 +126,7 @@ then
     # Sign GRUB files
     echo "Signing GRUB modules... (this will take a minute)"
     find "$GRUBSTAGE"/boot -type f -print0 | xargs -0 -n 1 \
-        gpg --batch -u "$KEYID" --detach-sign \
-        --passphrase-file "$PASSPHRASEFILE"
+        gpg --yes --batch -u "$KEYID" --detach-sign
 
     # Make memdisk/tar image:
     echo "Creating memdisk..."
@@ -294,10 +253,7 @@ then
         $USED_MODULES
 
     # Save db.key OpenSSL key to an unencrypted file (remove passphrase):
-    openssl rsa -in "$KEYDIR/db.key" -out "$PEMPRIVATEKEY" -passin stdin \
-        << EOFPASSPHRASEEOF
-$PASSPHRASE
-EOFPASSPHRASEEOF
+    openssl rsa -in "$KEYDIR/db.key" -out "$PEMPRIVATEKEY"
 
     # Sign the EFI image into final output location.
     echo "Signing GRUB image..."
@@ -359,7 +315,7 @@ EOFPASSPHRASEEOF
         # Now sign the final output with gpg:
         if [ -e "$SECURE_BOOT_KERNEL_PATH" ] ; then
             gpg --yes --batch -u "$KEYID" --detach-sign \
-                --passphrase-file "$PASSPHRASEFILE" "$SECURE_BOOT_KERNEL_PATH"
+                "$SECURE_BOOT_KERNEL_PATH"
         fi
     elif [ "$SECURE_BOOT_KERNEL_ACTION" = postrm -a \
         "$SECURE_BOOT_KERNEL_HOOK" = 1 ]
@@ -394,8 +350,7 @@ EOFPASSPHRASEEOF
                 ;;
             esac
             # Sign final output with gpg:
-            gpg --yes --batch -u "$KEYID" --detach-sign \
-                --passphrase-file "$PASSPHRASEFILE" "$file"
+            gpg --yes --batch -u "$KEYID" --detach-sign "$file"
         done
     fi
 
