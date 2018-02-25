@@ -242,6 +242,7 @@ then
         cat
         chain
         configfile
+        cryptodisk
         echo
         efifwsetup
         efinet
@@ -264,6 +265,7 @@ then
         lsefimmap
         lsefisystab
         lssal
+        luks
         memdisk
         minicmd
         normal
