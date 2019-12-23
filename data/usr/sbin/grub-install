@@ -98,6 +98,47 @@ RetryPassphrase() {
     fi	
 }
 
+# Cache: if the result will be the same return 0, else 1
+# this prevents rebuilding grub modules many times (once
+# per kernel installed)
+CheckCache() {
+    ## is /etc/ubuntu-secure-boot/grub.cfg unchanged?
+    ## is GPGPUBLICKEY unchanged?
+    if [ ! -d /etc/ubuntu-secure-boot/cache ]
+    then
+        echo "grub-install cache: first run, rebuild"
+        mkdir -p /etc/ubuntu-secure-boot/cache
+        return 1
+    fi
+    if [ ! -f /etc/ubuntu-secure-boot/cache/grub.cfg ]
+    then
+        echo "grub-install cache: no previous grub.cfg, rebuild"
+        return 1
+    fi
+    if [ ! -f /etc/ubuntu-secure-boot/cache/grub.pubkey ]
+    then
+        echo "grub-install cache: no previous grub.pubkey, rebuild"
+        return 1
+    fi
+    cmp "$GPGPUBLICKEY" /etc/ubuntu-secure-boot/cache/grub.pubkey
+    if [ $? != 0 ]
+    then
+        echo "grub install cache: GPG key changed, rebuild"
+        return 1
+    fi
+    if [ -f /etc/ubuntu-secure-boot/grub.cfg ]
+    then
+        cmp /etc/ubuntu-secure-boot/grub.cfg /etc/ubuntu-secure-boot/cache/grub.cfg
+        if [ $? != 0 ]
+        then
+            echo "grub install cache: change in grub.cfg, rebuild"
+            return 1
+        fi
+    fi
+    echo "grub install cache: no changes found, do not rebuld"
+    return 0
+}
+
 # Does key directory exist?
 if [ -d "$KEYDIR" ] && gpg -K --with-colons | \
     grep -q "Ubuntu secure boot EFI key" && \
@@ -110,15 +151,19 @@ then
     NULL="$(mktemp)"
     trap Cleanup EXIT INT TERM
 
-
     # See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=838153
     # KEYID is not in output. So instead, export and grep it
     KEYID=$(gpg -a --export |gpg --list-packets --verbose | \
       awk '/Ubuntu secure boot EFI key/ { printing=1 } /keyid/ { if (printing) { print $NF; printing=0} } {}')
 
     gpg --yes --output "$GPGPUBLICKEY" --export "$KEYID"
-
     set +e
+
+    CheckCache "$GPGPUBLICKEY"
+    if [ $? -eq 0 ]
+    then
+        exit 0
+    fi
 
     PASSPHRASEOK=0
     until [ $PASSPHRASEOK -eq 1 ]
@@ -433,6 +478,11 @@ then
     rm -rf /boot/grub/grubenv
     rm -rf /boot/grub/unicode.pf2
     : > /boot/grub/grub.cfg
+
+    # Now update cache
+    mkdir -p /etc/ubuntu-secure-boot/cache
+    cp "$GPGPUBLICKEY" /etc/ubuntu-secure-boot/cache/grub.pubkey
+    cp /etc/ubuntu-secure-boot/grub.cfg /etc/ubuntu-secure-boot/cache/grub.cfg
 
     exit 0
 fi
