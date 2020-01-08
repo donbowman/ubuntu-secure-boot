@@ -24,4 +24,4 @@ fi
 export SECURE_BOOT_SIGNED_SOURCE=
 
 # Run grub-install so that the new initramfs can be signed.
-grub-install
+grub-install --sign-all
