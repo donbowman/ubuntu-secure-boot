@@ -1,3 +1,9 @@
+ubuntu-secure-boot (0.1.5) unstable; urgency=low
+
+  * feat: invalidate cache if /boot/* changes or --sign-all
+
+ -- Don Bowman <db@donbowman.ca>  Thu, 9 Jan 2020 14:41:00 -0500
+
 ubuntu-secure-boot (0.1.4) unstable; urgency=low
 
   * feat: cache to avoid rebuild of all grub modules
