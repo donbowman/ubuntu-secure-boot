@@ -448,6 +448,7 @@ then
                 SECURE_BOOT_KERNEL_PATH="/boot/vmlinux-$SECURE_BOOT_KERNEL_ABI"
             fi
         fi
+        SECURE_BOOT_KERNEL_PATH=${SECURE_BOOT_KERNEL_PATH%.sig}
         # If SECURE_BOOT_SIGNED_SOURCE is set, then that is a kernel that we
         # already signed with a detached signature.  We will copy it to the
         # destination location, using sbsign to sign it with that, and then
@@ -490,7 +491,7 @@ then
     # only from make-secure-boot-keys.
     #if [ "$1" = --sign-all ] ; then
 
-    for file in $(ls /boot/vmlinux-* /boot/vmlinuz-* /boot/initrd* 2>/dev/null |grep -v "\.sig$") ; do
+    for file in $(ls /boot/vmlinux-* /boot/vmlinuz-* /boot/initrd* 2>/dev/null |egrep -v "\.sig$|\.sig.dpkg-bak$") ; do
 	# Skip soft-links (e.g. /boot/vmlinuz)
 	[ -f "$file" -a ! -h "$file" ] || continue
         CheckSig "$file" "$1"
