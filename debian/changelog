@@ -1,3 +1,10 @@
+ubuntu-secure-boot (0.1.7ubuntu1) unstable; urgency=medium
+
+  [ Kyle Larose ]
+  * fix: swap -e and +e in helper function
+
+ -- don <don@cube>  Mon, 03 Feb 2020 17:02:41 -0500
+
 ubuntu-secure-boot (0.1.7) unstable; urgency=low
 
   * fix: remove .sig from SECURE_BOOT_KERNEL_PATH if present
