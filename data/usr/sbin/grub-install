@@ -363,10 +363,10 @@ BuildGrubRamfs() {
 
     # Delete existing bootloader entries from firmware:
     log "Adding bootloader to EFI configuration..."
-    set +e
+    set -e
     efibootmgr | grep -i "$BOOTLOADER_ID" | cut -c 5-8 | xargs -n 1 -r \
 	efibootmgr --quiet --delete-bootnum --bootnum
-    set -e
+    set +e
     # Add new bootloader entry. nvme looks like /dev/nvme0n1p1
     DEVICE="$(df -T /boot/efi | sed -n 2p | awk '{ print $1}')"
     if [[ $DEVICE =~ n[0-9]+p[0-9] ]]
